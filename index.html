@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Weekly Focus & Timer Tracker</title>
+  <title>Study Timer Dashboard</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -14,9 +14,11 @@
       
       /* Status Colors */
       --color-not-started: #ef4444; /* Red */
+      --color-in-progress: #eab308; /* Yellow */
       --color-running: #22c55e;     /* Green */
       --color-completed: #64748b;   /* Grey */
       --color-weekly: #38bdf8;      /* Light Blue */
+      --color-daily: #a855f7;       /* Purple */
     }
 
     * { box-sizing: border-box; }
@@ -41,9 +43,9 @@
     /* Layout Structure */
     .dashboard-grid {
       display: grid;
-      grid-template-columns: 1fr 320px;
+      grid-template-columns: 1fr 340px;
       gap: 1.5rem;
-      max-width: 1100px;
+      max-width: 1150px;
       margin: 0 auto;
     }
 
@@ -87,7 +89,37 @@
       font-weight: normal;
     }
 
-    /* Add Task Form */
+    /* Minimizable Add Timer Panel */
+    .form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .form-header h2 { margin: 0; }
+
+    .btn-toggle-form {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    #add-form-content {
+      margin-top: 1rem;
+      display: none; /* Collapsed by default */
+    }
+
+    #add-form-content.expanded {
+      display: block;
+    }
+
+    /* Add Task Form Elements */
     .form-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -180,6 +212,7 @@
     }
 
     .task-card.status-not-started { border-left-color: var(--color-not-started); }
+    .task-card.status-in-progress { border-left-color: var(--color-in-progress); }
     .task-card.status-running {
       border-left-color: var(--color-running);
       box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
@@ -211,6 +244,7 @@
     }
 
     .status-not-started .status-badge { background: var(--color-not-started); }
+    .status-in-progress .status-badge { background: var(--color-in-progress); color: #000; }
     .status-running .status-badge { background: var(--color-running); color: #000; }
     .status-completed .status-badge { background: var(--color-completed); }
 
@@ -247,39 +281,73 @@
     }
 
     .status-not-started .progress-fill { background-color: var(--color-not-started); }
+    .status-in-progress .progress-fill { background-color: var(--color-in-progress); }
     .status-running .progress-fill { background-color: var(--color-running); }
     .status-completed .progress-fill { background-color: var(--color-completed); }
 
-    /* Weekly Goal Card Specifics */
-    .weekly-item {
+    /* Goal Widgets */
+    .goal-summary-card {
       background: #0f172a;
       border-radius: 8px;
       padding: 0.9rem;
-      margin-bottom: 0.8rem;
+      margin-bottom: 1rem;
       border: 1px solid var(--border);
     }
 
-    .weekly-item-title {
-      font-weight: 700;
+    .goal-summary-title {
+      font-weight: 800;
       font-size: 0.95rem;
       margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .weekly-fill {
-      background-color: var(--color-weekly);
+    .goal-item {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.6rem;
+      border: 1px solid var(--border);
     }
 
-    /* Controls */
+    .goal-item-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .weekly-fill { background-color: var(--color-weekly); }
+    .daily-fill { background-color: var(--color-daily); }
+
+    /* Controls & Displays */
     .timer-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-top: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .timer-left-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
     }
 
     .timer-display {
       font-size: 1.75rem;
       font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .elapsed-box {
+      font-size: 0.75rem;
+      background: #334155;
+      color: #94a3b8;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
@@ -295,6 +363,7 @@
     }
 
     .btn-action { background: var(--color-not-started); color: white; }
+    .status-in-progress .btn-action { background: var(--color-in-progress); color: black; }
     .status-running .btn-action { background: var(--color-running); color: black; }
 
     .btn-secondary {
@@ -313,56 +382,26 @@
 
     .empty-state {
       text-align: center;
-      padding: 2rem;
+      padding: 1.5rem;
       background: var(--card-bg);
       border-radius: 12px;
       color: var(--text-muted);
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Weekly Focus Dashboard</h1>
+    <h1>Study Timer Dashboard</h1>
     <p id="today-display">Loading day...</p>
   </header>
 
   <div class="dashboard-grid">
     
-    <!-- Main Column: Creation Form & Timers -->
+    <!-- Main Column -->
     <div class="main-column">
       
-      <!-- Add Timer Form -->
-      <div class="panel-card">
-        <h2>➕ Add New Custom Timer</h2>
-        <form id="add-task-form">
-          <div class="form-grid">
-            <input type="text" id="task-name-input" placeholder="Timer Name (e.g. Class ABC)" required />
-            <input type="number" id="weekly-goal-input" min="1" placeholder="Weekly Goal (Hours)" required />
-          </div>
-
-          <div class="form-grid">
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <span style="font-size: 0.85rem; color: var(--text-muted);">Daily Time:</span>
-              <input type="number" id="hours-input" min="0" max="23" placeholder="Hrs" required />
-              <input type="number" id="mins-input" min="0" max="59" placeholder="Mins" required />
-            </div>
-          </div>
-
-          <div class="day-checkboxes">
-            <label><input type="checkbox" value="1" class="day-check" checked> Mon</label>
-            <label><input type="checkbox" value="2" class="day-check" checked> Tue</label>
-            <label><input type="checkbox" value="3" class="day-check" checked> Wed</label>
-            <label><input type="checkbox" value="4" class="day-check" checked> Thu</label>
-            <label><input type="checkbox" value="5" class="day-check"> Fri</label>
-            <label><input type="checkbox" value="6" class="day-check"> Sat</label>
-            <label><input type="checkbox" value="0" class="day-check"> Sun</label>
-          </div>
-
-          <button type="submit" class="btn-add">Add Timer</button>
-        </form>
-      </div>
-
       <!-- Filter Tabs -->
       <div class="filter-bar">
         <button class="filter-btn active" id="filter-today" onclick="setFilter('today')">Today's Timers</button>
@@ -372,17 +411,68 @@
       <!-- Task List Container -->
       <div class="tasks-list" id="tasks-container"></div>
 
+      <!-- Minimizable Add Timer Widget (At Bottom) -->
+      <div class="panel-card">
+        <div class="form-header" onclick="toggleAddForm()">
+          <h2>➕ Add New Custom Timer</h2>
+          <button type="button" class="btn-toggle-form" id="form-toggle-btn">Expand ▼</button>
+        </div>
+        
+        <div id="add-form-content">
+          <form id="add-task-form">
+            <div class="form-grid">
+              <input type="text" id="task-name-input" placeholder="Timer Name (e.g. Class ABC)" required />
+              <input type="number" id="weekly-goal-input" min="1" step="0.5" placeholder="Weekly Goal (Hours)" required />
+            </div>
+
+            <div class="form-grid">
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Daily Time:</span>
+                <input type="number" id="hours-input" min="0" max="23" placeholder="Hrs" required />
+                <input type="number" id="mins-input" min="0" max="59" placeholder="Mins" required />
+              </div>
+            </div>
+
+            <div class="day-checkboxes">
+              <label><input type="checkbox" value="1" class="day-check" checked> Mon</label>
+              <label><input type="checkbox" value="2" class="day-check" checked> Tue</label>
+              <label><input type="checkbox" value="3" class="day-check" checked> Wed</label>
+              <label><input type="checkbox" value="4" class="day-check" checked> Thu</label>
+              <label><input type="checkbox" value="5" class="day-check"> Fri</label>
+              <label><input type="checkbox" value="6" class="day-check"> Sat</label>
+              <label><input type="checkbox" value="0" class="day-check"> Sun</label>
+            </div>
+
+            <button type="submit" class="btn-add">Add Timer</button>
+          </form>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Side Panel: Weekly Goals Summary -->
+    <!-- Side Panel -->
     <div class="side-panel">
+      
+      <!-- Weekly Goals Panel -->
       <div class="panel-card">
         <h2>
           📊 Weekly Goals
           <span class="reset-note">Resets Sat Midnight</span>
         </h2>
+        <div id="weekly-summary-container"></div>
         <div id="weekly-goals-container"></div>
       </div>
+
+      <!-- Daily Goals Panel -->
+      <div class="panel-card">
+        <h2>
+          🎯 Daily Goals
+          <span class="reset-note">Resets Midnight</span>
+        </h2>
+        <div id="daily-summary-container"></div>
+        <div id="daily-goals-container"></div>
+      </div>
+
     </div>
 
   </div>
@@ -428,6 +518,13 @@
       localStorage.setItem('custom_timers_list', JSON.stringify(tasks));
     }
 
+    function toggleAddForm() {
+      const content = document.getElementById('add-form-content');
+      const btn = document.getElementById('form-toggle-btn');
+      const isExpanded = content.classList.toggle('expanded');
+      btn.textContent = isExpanded ? "Collapse ▲" : "Expand ▼";
+    }
+
     document.getElementById('today-display').textContent = 
       `Today is ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`;
 
@@ -471,9 +568,11 @@
       saveTasks();
       renderTasks();
       renderWeeklyGoals();
+      renderDailyGoals();
 
       document.getElementById('add-task-form').reset();
       document.querySelectorAll('.day-check').forEach((cb, idx) => cb.checked = idx < 4);
+      toggleAddForm(); // Collapse after adding
     });
 
     function setFilter(filter) {
@@ -514,6 +613,7 @@
         saveTasks();
         renderTasks();
         renderWeeklyGoals();
+        renderDailyGoals();
       }
     }
 
@@ -538,6 +638,7 @@
       saveTasks();
       renderTasks();
       renderWeeklyGoals();
+      renderDailyGoals();
     }
 
     function resetTimer(id) {
@@ -554,6 +655,7 @@
       task.lastTickTime = null;
       saveTasks();
       renderTasks();
+      renderDailyGoals();
     }
 
     function deleteTask(id) {
@@ -566,6 +668,7 @@
         saveTasks();
         renderTasks();
         renderWeeklyGoals();
+        renderDailyGoals();
       }
     }
 
@@ -604,17 +707,30 @@
         const progressPct = Math.min(100, Math.round((drainedSeconds / task.totalSeconds) * 100));
         const dayLabels = task.days.map(d => DAY_NAMES[d]).join(', ');
 
-        const card = document.createElement('div');
-        card.className = `task-card status-${task.status}`;
+        let cardStatusClass = 'not-started';
+        let statusBadgeText = "RED (NOT STARTED)";
+        let actionBtnText = "Start";
 
-        let statusText = "Red (Not Started)";
-        if (task.status === 'running') statusText = "Green (Working)";
-        if (task.status === 'completed') statusText = "Grey (Complete)";
+        if (task.status === 'running') {
+          cardStatusClass = 'running';
+          statusBadgeText = "GREEN (WORKING)";
+          actionBtnText = "Pause";
+        } else if (task.remainingSeconds === 0) {
+          cardStatusClass = 'completed';
+          statusBadgeText = "GREY (COMPLETE)";
+        } else if (drainedSeconds > 0) {
+          cardStatusClass = 'in-progress';
+          statusBadgeText = "YELLOW (IN PROGRESS)";
+          actionBtnText = "Resume";
+        }
+
+        const card = document.createElement('div');
+        card.className = `task-card status-${cardStatusClass}`;
 
         card.innerHTML = `
           <div class="task-header">
             <span class="task-title">${task.name}</span>
-            <span class="status-badge">${statusText}</span>
+            <span class="status-badge">${statusBadgeText}</span>
           </div>
           
           <div class="days-tag">Scheduled: ${dayLabels}</div>
@@ -630,11 +746,14 @@
           </div>
 
           <div class="timer-row">
-            <div class="timer-display">${formatTime(task.remainingSeconds)}</div>
+            <div class="timer-left-group">
+              <div class="timer-display">${formatTime(task.remainingSeconds)}</div>
+              <div class="elapsed-box">TIME ELAPSED: ${formatTime(drainedSeconds)}</div>
+            </div>
             <div class="controls">
-              ${task.status !== 'completed' ? `
+              ${task.remainingSeconds > 0 ? `
                 <button class="btn btn-action" onclick="toggleTimer('${task.id}')">
-                  ${task.status === 'running' ? 'Pause' : 'Start'}
+                  ${actionBtnText}
                 </button>
               ` : ''}
               <button class="btn btn-secondary" onclick="resetTimer('${task.id}')">Reset</button>
@@ -648,13 +767,42 @@
     }
 
     function renderWeeklyGoals() {
-      const container = document.getElementById('weekly-goals-container');
-      container.innerHTML = '';
+      const summaryContainer = document.getElementById('weekly-summary-container');
+      const listContainer = document.getElementById('weekly-goals-container');
+      
+      summaryContainer.innerHTML = '';
+      listContainer.innerHTML = '';
 
       if (tasks.length === 0) {
-        container.innerHTML = `<div class="empty-state">No goals set yet.</div>`;
+        listContainer.innerHTML = `<div class="empty-state">No goals set yet.</div>`;
         return;
       }
+
+      // Calculate Total Weekly Progress Sum
+      let totalWeeklyGoalSecs = 0;
+      let totalWeeklyAccumulatedSecs = 0;
+
+      tasks.forEach(task => {
+        totalWeeklyGoalSecs += (task.weeklyGoalHours || 0) * 3600;
+        totalWeeklyAccumulatedSecs += (task.weeklyAccumulatedSecs || 0);
+      });
+
+      const totalWeeklyPct = totalWeeklyGoalSecs > 0 
+        ? Math.min(100, Math.round((totalWeeklyAccumulatedSecs / totalWeeklyGoalSecs) * 100)) 
+        : 0;
+
+      summaryContainer.innerHTML = `
+        <div class="goal-summary-card">
+          <div class="goal-summary-title">Total Weekly Progress</div>
+          <div class="progress-info">
+            <span>Done: ${formatHoursMinutes(totalWeeklyAccumulatedSecs)}</span>
+            <span>Goal: ${(totalWeeklyGoalSecs / 3600).toFixed(1)} hrs (${totalWeeklyPct}%)</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill weekly-fill" style="width: ${totalWeeklyPct}%"></div>
+          </div>
+        </div>
+      `;
 
       tasks.forEach(task => {
         const goalSecs = (task.weeklyGoalHours || 1) * 3600;
@@ -662,9 +810,9 @@
         const pct = Math.min(100, Math.round((currentSecs / goalSecs) * 100));
 
         const item = document.createElement('div');
-        item.className = 'weekly-item';
+        item.className = 'goal-item';
         item.innerHTML = `
-          <div class="weekly-item-title">${task.name}</div>
+          <div class="goal-item-title">${task.name}</div>
           <div class="progress-info">
             <span>Done: ${formatHoursMinutes(currentSecs)}</span>
             <span>Goal: ${task.weeklyGoalHours} hrs (${pct}%)</span>
@@ -673,10 +821,71 @@
             <div class="progress-fill weekly-fill" style="width: ${pct}%"></div>
           </div>
         `;
-        container.appendChild(item);
+        listContainer.appendChild(item);
       });
     }
 
+    function renderDailyGoals() {
+      const summaryContainer = document.getElementById('daily-summary-container');
+      const listContainer = document.getElementById('daily-goals-container');
+
+      summaryContainer.innerHTML = '';
+      listContainer.innerHTML = '';
+
+      const todayTasks = tasks.filter(t => t.days.includes(todayIndex));
+
+      if (todayTasks.length === 0) {
+        listContainer.innerHTML = `<div class="empty-state">No timers scheduled for today.</div>`;
+        return;
+      }
+
+      // Calculate Total Daily Progress Sum
+      let totalDailyGoalSecs = 0;
+      let totalDailyDrainedSecs = 0;
+
+      todayTasks.forEach(task => {
+        totalDailyGoalSecs += task.totalSeconds;
+        totalDailyDrainedSecs += (task.totalSeconds - task.remainingSeconds);
+      });
+
+      const totalDailyPct = totalDailyGoalSecs > 0 
+        ? Math.min(100, Math.round((totalDailyDrainedSecs / totalDailyGoalSecs) * 100)) 
+        : 0;
+
+      summaryContainer.innerHTML = `
+        <div class="goal-summary-card">
+          <div class="goal-summary-title">Total Daily Progress</div>
+          <div class="progress-info">
+            <span>Done: ${formatHoursMinutes(totalDailyDrainedSecs)}</span>
+            <span>Goal: ${formatHoursMinutes(totalDailyGoalSecs)} (${totalDailyPct}%)</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill daily-fill" style="width: ${totalDailyPct}%"></div>
+          </div>
+        </div>
+      `;
+
+      todayTasks.forEach(task => {
+        const drainedSeconds = task.totalSeconds - task.remainingSeconds;
+        const pct = Math.min(100, Math.round((drainedSeconds / task.totalSeconds) * 100));
+
+        const item = document.createElement('div');
+        item.className = 'goal-item';
+        item.innerHTML = `
+          <div class="goal-item-title">${task.name}</div>
+          <div class="progress-info">
+            <span>Done: ${formatHoursMinutes(drainedSeconds)}</span>
+            <span>Goal: ${formatHoursMinutes(task.totalSeconds)} (${pct}%)</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill daily-fill" style="width: ${pct}%"></div>
+          </div>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    // Resume any active background timers upon load
     tasks.forEach(task => {
       if (task.status === 'running') {
         task.lastTickTime = Date.now();
@@ -687,6 +896,7 @@
     checkResets();
     renderTasks();
     renderWeeklyGoals();
+    renderDailyGoals();
   </script>
 </body>
 </html>
