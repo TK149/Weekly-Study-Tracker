@@ -112,7 +112,7 @@
 
     #add-form-content {
       margin-top: 1rem;
-      display: none; /* Collapsed by default */
+      display: none;
     }
 
     #add-form-content.expanded {
@@ -209,6 +209,7 @@
       padding: 1.25rem;
       border-left: 6px solid var(--color-not-started);
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
     }
 
     .task-card.status-not-started { border-left-color: var(--color-not-started); }
@@ -227,12 +228,29 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5rem;
+      padding-right: 2rem;
+    }
+
+    .task-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .task-title {
       font-size: 1.2rem;
       font-weight: 700;
     }
+
+    .btn-edit {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .btn-edit:hover { opacity: 1; }
 
     .status-badge {
       font-size: 0.75rem;
@@ -316,6 +334,7 @@
       margin-bottom: 0.3rem;
     }
 
+    .summary-fill { background-color: var(--color-running) !important; }
     .weekly-fill { background-color: var(--color-weekly); }
     .daily-fill { background-color: var(--color-daily); }
 
@@ -422,7 +441,7 @@
           <form id="add-task-form">
             <div class="form-grid">
               <input type="text" id="task-name-input" placeholder="Timer Name (e.g. Class ABC)" required />
-              <input type="number" id="weekly-goal-input" min="1" step="0.5" placeholder="Weekly Goal (Hours)" required />
+              <input type="number" id="weekly-goal-input" min="0.5" step="0.5" placeholder="Weekly Goal (Hours)" required />
             </div>
 
             <div class="form-grid">
@@ -499,8 +518,13 @@
       const currentWeekId = getWeekIdentifier();
 
       tasks.forEach(task => {
+        if (task.dailyAccumulatedSecs === undefined) {
+          task.dailyAccumulatedSecs = task.totalSeconds - task.remainingSeconds;
+        }
+
         if (task.lastActiveDate !== todayStr) {
           task.remainingSeconds = task.totalSeconds;
+          task.dailyAccumulatedSecs = 0;
           task.status = 'not-started';
           task.lastActiveDate = todayStr;
           task.lastTickTime = null;
@@ -555,6 +579,7 @@
         name: name,
         totalSeconds: totalSeconds,
         remainingSeconds: totalSeconds,
+        dailyAccumulatedSecs: 0,
         weeklyGoalHours: weeklyGoal,
         weeklyAccumulatedSecs: 0,
         days: selectedDays,
@@ -572,8 +597,53 @@
 
       document.getElementById('add-task-form').reset();
       document.querySelectorAll('.day-check').forEach((cb, idx) => cb.checked = idx < 4);
-      toggleAddForm(); // Collapse after adding
+      toggleAddForm();
     });
+
+    function editTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      const newName = prompt("Enter new name for this timer:", task.name);
+      if (newName === null) return;
+
+      const currentHrs = Math.floor(task.totalSeconds / 3600);
+      const currentMins = Math.floor((task.totalSeconds % 3600) / 60);
+
+      const newHrsInput = prompt("Enter daily hours target:", currentHrs);
+      if (newHrsInput === null) return;
+
+      const newMinsInput = prompt("Enter daily minutes target:", currentMins);
+      if (newMinsInput === null) return;
+
+      const newWeeklyGoalInput = prompt("Enter weekly goal (hours):", task.weeklyGoalHours);
+      if (newWeeklyGoalInput === null) return;
+
+      const hrs = parseInt(newHrsInput) || 0;
+      const mins = parseInt(newMinsInput) || 0;
+      const weeklyGoal = parseFloat(newWeeklyGoalInput) || 0;
+
+      if (hrs === 0 && mins === 0) {
+        alert("Daily goal must be greater than 0 minutes.");
+        return;
+      }
+
+      const newTotalSecs = (hrs * 3600) + (mins * 60);
+
+      task.name = newName.trim() || task.name;
+      task.weeklyGoalHours = weeklyGoal;
+      
+      // Update target duration and adjust remaining duration proportionately if modified
+      if (newTotalSecs !== task.totalSeconds) {
+        task.totalSeconds = newTotalSecs;
+        task.remainingSeconds = Math.min(task.remainingSeconds, newTotalSecs);
+      }
+
+      saveTasks();
+      renderTasks();
+      renderWeeklyGoals();
+      renderDailyGoals();
+    }
 
     function setFilter(filter) {
       activeFilter = filter;
@@ -598,6 +668,7 @@
         const actualDeduction = Math.min(task.remainingSeconds, elapsedSecs);
         
         task.remainingSeconds -= actualDeduction;
+        task.dailyAccumulatedSecs += actualDeduction;
         task.weeklyAccumulatedSecs += actualDeduction;
         task.lastTickTime += actualDeduction * 1000;
 
@@ -729,7 +800,10 @@
 
         card.innerHTML = `
           <div class="task-header">
-            <span class="task-title">${task.name}</span>
+            <div class="task-title-wrap">
+              <span class="task-title">${task.name}</span>
+              <button class="btn-edit" onclick="editTask('${task.id}')" title="Edit Timer">✏️</button>
+            </div>
             <span class="status-badge">${statusBadgeText}</span>
           </div>
           
@@ -778,7 +852,6 @@
         return;
       }
 
-      // Calculate Total Weekly Progress Sum
       let totalWeeklyGoalSecs = 0;
       let totalWeeklyAccumulatedSecs = 0;
 
@@ -799,7 +872,7 @@
             <span>Goal: ${(totalWeeklyGoalSecs / 3600).toFixed(1)} hrs (${totalWeeklyPct}%)</span>
           </div>
           <div class="progress-track">
-            <div class="progress-fill weekly-fill" style="width: ${totalWeeklyPct}%"></div>
+            <div class="progress-fill summary-fill" style="width: ${totalWeeklyPct}%"></div>
           </div>
         </div>
       `;
@@ -839,42 +912,41 @@
         return;
       }
 
-      // Calculate Total Daily Progress Sum
       let totalDailyGoalSecs = 0;
-      let totalDailyDrainedSecs = 0;
+      let totalDailyAccumulatedSecs = 0;
 
       todayTasks.forEach(task => {
         totalDailyGoalSecs += task.totalSeconds;
-        totalDailyDrainedSecs += (task.totalSeconds - task.remainingSeconds);
+        totalDailyAccumulatedSecs += (task.dailyAccumulatedSecs || 0);
       });
 
       const totalDailyPct = totalDailyGoalSecs > 0 
-        ? Math.min(100, Math.round((totalDailyDrainedSecs / totalDailyGoalSecs) * 100)) 
+        ? Math.min(100, Math.round((totalDailyAccumulatedSecs / totalDailyGoalSecs) * 100)) 
         : 0;
 
       summaryContainer.innerHTML = `
         <div class="goal-summary-card">
           <div class="goal-summary-title">Total Daily Progress</div>
           <div class="progress-info">
-            <span>Done: ${formatHoursMinutes(totalDailyDrainedSecs)}</span>
+            <span>Done: ${formatHoursMinutes(totalDailyAccumulatedSecs)}</span>
             <span>Goal: ${formatHoursMinutes(totalDailyGoalSecs)} (${totalDailyPct}%)</span>
           </div>
           <div class="progress-track">
-            <div class="progress-fill daily-fill" style="width: ${totalDailyPct}%"></div>
+            <div class="progress-fill summary-fill" style="width: ${totalDailyPct}%"></div>
           </div>
         </div>
       `;
 
       todayTasks.forEach(task => {
-        const drainedSeconds = task.totalSeconds - task.remainingSeconds;
-        const pct = Math.min(100, Math.round((drainedSeconds / task.totalSeconds) * 100));
+        const currentSecs = task.dailyAccumulatedSecs || 0;
+        const pct = Math.min(100, Math.round((currentSecs / task.totalSeconds) * 100));
 
         const item = document.createElement('div');
         item.className = 'goal-item';
         item.innerHTML = `
           <div class="goal-item-title">${task.name}</div>
           <div class="progress-info">
-            <span>Done: ${formatHoursMinutes(drainedSeconds)}</span>
+            <span>Done: ${formatHoursMinutes(currentSecs)}</span>
             <span>Goal: ${formatHoursMinutes(task.totalSeconds)} (${pct}%)</span>
           </div>
           <div class="progress-track">
@@ -885,7 +957,7 @@
       });
     }
 
-    // Resume any active background timers upon load
+    // Resume background running timers
     tasks.forEach(task => {
       if (task.status === 'running') {
         task.lastTickTime = Date.now();
