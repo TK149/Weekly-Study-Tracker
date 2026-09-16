@@ -778,10 +778,12 @@
       }
 
       task.remainingSeconds = task.totalSeconds;
+      task.dailyAccumulatedSecs = 0;
       task.status = 'not-started';
       task.lastTickTime = null;
       saveTasks();
       renderTasks();
+      renderWeeklyGoals();
       renderDailyGoals();
     }
 
@@ -806,7 +808,11 @@
       return `${h}:${m}:${s}`;
     }
 
-    // Fixed up your cut off section here:
+    function formatHoursMinutes(totalSecs) {
+      const h = (totalSecs / 3600).toFixed(1);
+      return `${h} hrs`;
+    }
+
     function renderTasks() {
       const container = document.getElementById('tasks-container');
       container.innerHTML = '';
@@ -887,117 +893,120 @@
       });
     }
 
-    // Dummy functions to prevent errors if they were declared elsewhere
- function renderWeeklyGoals() {
-  const summaryContainer = document.getElementById('weekly-summary-container');
-  const listContainer = document.getElementById('weekly-goals-container');
-  summaryContainer.innerHTML = '';
-  listContainer.innerHTML = '';
+    // ========================================================
+    // DYNAMIC GOALS WIDGETS LOGIC
+    // ========================================================
+    function renderWeeklyGoals() {
+      const summaryContainer = document.getElementById('weekly-summary-container');
+      const listContainer = document.getElementById('weekly-goals-container');
+      summaryContainer.innerHTML = '';
+      listContainer.innerHTML = '';
 
-  const weeklyTasks = tasks.filter(t => t.weeklyGoalHours > 0);
+      const weeklyTasks = tasks.filter(t => t.weeklyGoalHours > 0);
 
-  if (weeklyTasks.length === 0) {
-    listContainer.innerHTML = '<div class="empty-state">No weekly goals set.</div>';
-    return;
-  }
+      if (weeklyTasks.length === 0) {
+        listContainer.innerHTML = '<div class="empty-state">No weekly goals set.</div>';
+        return;
+      }
 
-  let totalWeeklySecs = 0;
-  let totalWeeklyCompleted = 0;
-  let listHTML = '';
+      let totalWeeklySecs = 0;
+      let totalWeeklyCompleted = 0;
+      let listHTML = '';
 
-  weeklyTasks.forEach(task => {
-    const taskWeeklyGoalSecs = task.weeklyGoalHours * 3600;
-    totalWeeklySecs += taskWeeklyGoalSecs;
-    totalWeeklyCompleted += task.weeklyAccumulatedSecs;
+      weeklyTasks.forEach(task => {
+        const taskWeeklyGoalSecs = task.weeklyGoalHours * 3600;
+        totalWeeklySecs += taskWeeklyGoalSecs;
+        totalWeeklyCompleted += task.weeklyAccumulatedSecs;
 
-    const progressPct = Math.min(100, Math.round((task.weeklyAccumulatedSecs / taskWeeklyGoalSecs) * 100)) || 0;
+        const progressPct = Math.min(100, Math.round((task.weeklyAccumulatedSecs / taskWeeklyGoalSecs) * 100)) || 0;
 
-    listHTML += `
-      <div class="goal-item">
-        <div class="goal-item-title">${task.name}</div>
-        <div class="progress-info">
-          <span>${formatHoursMinutes(task.weeklyAccumulatedSecs)} / ${task.weeklyGoalHours} hrs</span>
-          <span>${progressPct}%</span>
+        listHTML += `
+          <div class="goal-item">
+            <div class="goal-item-title">${task.name}</div>
+            <div class="progress-info">
+              <span>${formatHoursMinutes(task.weeklyAccumulatedSecs)} / ${task.weeklyGoalHours} hrs</span>
+              <span>${progressPct}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill weekly-fill" style="width: ${progressPct}%"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      const totalPct = totalWeeklySecs > 0 ? Math.min(100, Math.round((totalWeeklyCompleted / totalWeeklySecs) * 100)) : 0;
+
+      summaryContainer.innerHTML = `
+        <div class="goal-summary-card">
+          <div class="goal-summary-title">Weekly Total</div>
+          <div class="progress-info">
+            <span>${formatHoursMinutes(totalWeeklyCompleted)} / ${formatHoursMinutes(totalWeeklySecs)}</span>
+            <span>${totalPct}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill summary-fill" style="width: ${totalPct}%"></div>
+          </div>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill weekly-fill" style="width: ${progressPct}%"></div>
+      `;
+
+      listContainer.innerHTML = listHTML;
+    }
+
+    function renderDailyGoals() {
+      const summaryContainer = document.getElementById('daily-summary-container');
+      const listContainer = document.getElementById('daily-goals-container');
+      summaryContainer.innerHTML = '';
+      listContainer.innerHTML = '';
+
+      // Filter tasks to only those scheduled for the current day
+      const todaysTasks = tasks.filter(t => t.days.includes(todayIndex));
+      
+      if (todaysTasks.length === 0) {
+        listContainer.innerHTML = '<div class="empty-state">No goals for today.</div>';
+        return;
+      }
+
+      let totalDailySecs = 0;
+      let totalDailyCompleted = 0;
+      let listHTML = '';
+
+      todaysTasks.forEach(task => {
+        totalDailySecs += task.totalSeconds;
+        totalDailyCompleted += task.dailyAccumulatedSecs;
+
+        const progressPct = Math.min(100, Math.round((task.dailyAccumulatedSecs / task.totalSeconds) * 100)) || 0;
+
+        listHTML += `
+          <div class="goal-item">
+            <div class="goal-item-title">${task.name}</div>
+            <div class="progress-info">
+              <span>${formatHoursMinutes(task.dailyAccumulatedSecs)} / ${formatHoursMinutes(task.totalSeconds)}</span>
+              <span>${progressPct}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill daily-fill" style="width: ${progressPct}%"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      const totalPct = totalDailySecs > 0 ? Math.min(100, Math.round((totalDailyCompleted / totalDailySecs) * 100)) : 0;
+
+      summaryContainer.innerHTML = `
+        <div class="goal-summary-card">
+          <div class="goal-summary-title">Daily Total</div>
+          <div class="progress-info">
+            <span>${formatHoursMinutes(totalDailyCompleted)} / ${formatHoursMinutes(totalDailySecs)}</span>
+            <span>${totalPct}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill summary-fill" style="width: ${totalPct}%"></div>
+          </div>
         </div>
-      </div>
-    `;
-  });
+      `;
 
-  const totalPct = totalWeeklySecs > 0 ? Math.min(100, Math.round((totalWeeklyCompleted / totalWeeklySecs) * 100)) : 0;
-
-  summaryContainer.innerHTML = `
-    <div class="goal-summary-card">
-      <div class="goal-summary-title">Weekly Total</div>
-      <div class="progress-info">
-        <span>${formatHoursMinutes(totalWeeklyCompleted)} / ${formatHoursMinutes(totalWeeklySecs)}</span>
-        <span>${totalPct}%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill summary-fill" style="width: ${totalPct}%"></div>
-      </div>
-    </div>
-  `;
-
-  listContainer.innerHTML = listHTML;
-}
-
-function renderDailyGoals() {
-  const summaryContainer = document.getElementById('daily-summary-container');
-  const listContainer = document.getElementById('daily-goals-container');
-  summaryContainer.innerHTML = '';
-  listContainer.innerHTML = '';
-
-  const todaysTasks = tasks.filter(t => t.days.includes(todayIndex));
-  
-  if (todaysTasks.length === 0) {
-    listContainer.innerHTML = '<div class="empty-state">No goals for today.</div>';
-    return;
-  }
-
-  let totalDailySecs = 0;
-  let totalDailyCompleted = 0;
-  let listHTML = '';
-
-  todaysTasks.forEach(task => {
-    totalDailySecs += task.totalSeconds;
-    totalDailyCompleted += task.dailyAccumulatedSecs;
-
-    const progressPct = Math.min(100, Math.round((task.dailyAccumulatedSecs / task.totalSeconds) * 100)) || 0;
-
-    listHTML += `
-      <div class="goal-item">
-        <div class="goal-item-title">${task.name}</div>
-        <div class="progress-info">
-          <span>${formatHoursMinutes(task.dailyAccumulatedSecs)} / ${formatHoursMinutes(task.totalSeconds)}</span>
-          <span>${progressPct}%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill daily-fill" style="width: ${progressPct}%"></div>
-        </div>
-      </div>
-    `;
-  });
-
-  const totalPct = totalDailySecs > 0 ? Math.min(100, Math.round((totalDailyCompleted / totalDailySecs) * 100)) : 0;
-
-  summaryContainer.innerHTML = `
-    <div class="goal-summary-card">
-      <div class="goal-summary-title">Daily Total</div>
-      <div class="progress-info">
-        <span>${formatHoursMinutes(totalDailyCompleted)} / ${formatHoursMinutes(totalDailySecs)}</span>
-        <span>${totalPct}%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill summary-fill" style="width: ${totalPct}%"></div>
-      </div>
-    </div>
-  `;
-
-  listContainer.innerHTML = listHTML;
-}
+      listContainer.innerHTML = listHTML;
+    }
 
     /* ========================================================
        FULLSCREEN BEHAVIOR LOGIC
@@ -1088,10 +1097,14 @@ function renderDailyGoals() {
       updateFsDisplay();
     }
 
-    // Initialize the Application
+    // ========================================================
+    // INITIALIZATION
+    // ========================================================
     checkResets();
     renderAgenda();
     renderTasks();
+    renderWeeklyGoals();
+    renderDailyGoals();
   </script>
 </body>
 </html>
